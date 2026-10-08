@@ -8,6 +8,10 @@
 #define NUM_LEDS 1
 #define USER_LED 25
 
+/*
+
+// Linear finding
+
 Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
 int R;
@@ -88,6 +92,78 @@ void generateColorForArray(){
   }
   Serial.print("Current attempt: ");
   Serial.println(attempt);
+  attempt++;
+}
+
+void loop() {
+  generateColorForArray();
+  delay(500);
+}*/
+
+// Exponential finding
+
+
+Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+
+int R;
+int G;
+int B;
+int findColors[3] = {50, 47, 157};
+int attempt = 1;
+
+void setup() {
+  pinMode(NEOPIXEL_POWER, OUTPUT);
+  pinMode(USER_LED, OUTPUT);
+  digitalWrite(USER_LED, LOW);
+  digitalWrite(NEOPIXEL_POWER, HIGH);
+
+  pixels.begin(); 
+  pixels.clear();
+  pixels.show();
+}
+
+void findedColor(int numberOfAttempts){
+  Serial.print("Number of attempts: ");
+  Serial.println(numberOfAttempts);
+  while(1){
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    pixels.show();
+    delay(500);
+    pixels.setPixelColor(0, pixels.Color(0, 255, 0));
+    pixels.show();
+    delay(500);
+    pixels.setPixelColor(0, pixels.Color(0, 0, 255));
+    pixels.show();
+    delay(500);
+  }
+}
+
+int numberOfColors = 1;
+
+void generateColorForArray() {
+
+  numberOfColors *= 2;
+
+  for (int j = 0; j < numberOfColors; j++) {
+
+    R = rand() % 256;
+    G = rand() % 256;
+    B = rand() % 256;
+
+    if (findColors[0] == R &&
+        findColors[1] == G &&
+        findColors[2] == B) {
+
+      findedColor(attempt);
+    }
+  }
+
+  Serial.print("Current attempt: ");
+  Serial.println(attempt);
+
+  Serial.print("Colors checked: ");
+  Serial.println(numberOfColors);
+
   attempt++;
 }
 
