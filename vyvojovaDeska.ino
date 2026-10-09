@@ -1,18 +1,20 @@
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <Crypto.h>
+#include <SHA256.h>
+#include <stdint.h>
+#include <string.h>
+
+SHA256 sha256;
 
 #define NEOPIXEL_POWER 23
 #define PIN_NEOPIXEL 22
 #define NUM_LEDS 1
 #define USER_LED 25
-
+Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 /*
 
 // Linear finding
-
-Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
 int R;
 int G;
@@ -100,10 +102,10 @@ void loop() {
   delay(500);
 }*/
 
-// Exponential finding
+// Exponential finding -- RGB
 
+/*
 
-Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
 int R;
 int G;
@@ -170,4 +172,92 @@ void generateColorForArray() {
 void loop() {
   generateColorForArray();
   delay(500);
+}*/
+
+#include <atomic>
+SHA256 sha256_0;
+SHA256 sha256_1;
+
+// Každý core má vlastní vstup i výstup.
+uint8_t input0[16] = {1, 2, 3, 4};
+uint8_t input1[16] = {5, 6, 7, 8};
+
+uint8_t digest0[32];
+uint8_t digest1[32];
+
+// Počítadla dokončených hashů.
+std::atomic<uint32_t> hashes0{0};
+std::atomic<uint32_t> hashes1{0};
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(NEOPIXEL_POWER, OUTPUT);
+  pinMode(USER_LED, OUTPUT);
+
+  digitalWrite(USER_LED, LOW);
+  digitalWrite(NEOPIXEL_POWER, HIGH);
+
+  pixels.begin();
+  pixels.clear();
+  pixels.show();
+}
+
+void setup1() {
+}
+
+// Provede jeden SHA-256 a změní vstup podle výsledku.
+inline void calculateHash(
+  SHA256 &hasher,
+  uint8_t *input,
+  uint8_t *digest
+) {
+  hasher.reset();
+  hasher.update(input, 16);
+  hasher.finalize(digest, 32);
+
+  // Zajistí, že další vstup závisí na výsledku hashe.
+  input[0] = digest[0];
+}
+
+void loop() {
+  static uint32_t localCount = 0;
+  static uint32_t lastReport = millis();
+
+  calculateHash(sha256_0, input0, digest0);
+  localCount++;
+
+  // Hromadné aktualizování počítadla snižuje režii.
+  if (localCount >= 256) {
+    hashes0.fetch_add(localCount, std::memory_order_relaxed);
+    localCount = 0;
+  }
+
+  uint32_t now = millis();
+
+  if (now - lastReport >= 1000) {
+    // Zahrne i nedokončenou dávku hlavního core.
+    uint32_t count0 = hashes0.exchange(0, std::memory_order_relaxed);
+    uint32_t count1 = hashes1.exchange(0, std::memory_order_relaxed);
+
+    count0 += localCount;
+    localCount = 0;
+
+    Serial.print("SHA-256 za sekundu: ");
+    Serial.println(count0 + count1);
+
+    lastReport = now;
+  }
+}
+
+void loop1() {
+  static uint32_t localCount = 0;
+
+  calculateHash(sha256_1, input1, digest1);
+  localCount++;
+
+  if (localCount >= 256) {
+    hashes1.fetch_add(localCount, std::memory_order_relaxed);
+    localCount = 0;
+  }
 }
